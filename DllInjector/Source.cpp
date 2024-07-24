@@ -1,5 +1,5 @@
 /*+===================================================================
-  File:      DllInjector32.exe
+  File:      DllInjector.exe
 
   Summary:   DllInjector is an application that searches for specified
              process and injects specified Dll file.
@@ -13,7 +13,6 @@
 #include <filesystem>
 
 INITIALIZE_EASYLOGGINGPP
-el::Logger* defaultLogger = el::Loggers::getLogger("default");
 
 constexpr size_t PROCESS_NAME_LENGTH_MAX = 500;
 
@@ -21,8 +20,9 @@ void ConfigureLogger()
 {
     el::Configurations loggerConfigs;
     loggerConfigs.setToDefault();
-    loggerConfigs.setGlobally(el::ConfigurationType::Filename, "C:\\Users\\musli\\AppData\\Local\\Temp\\DllInjector32.log");
+    loggerConfigs.setGlobally(el::ConfigurationType::Filename, "C:\\Users\\musli\\AppData\\Local\\Temp\\DllInjector.log");
     el::Loggers::reconfigureAllLoggers(loggerConfigs);
+    LOG(INFO) << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>";
 }
 
 /*
@@ -119,7 +119,6 @@ void WaitThread(HANDLE hThread) {
 -----------------------------------------------------------------F-F*/
 int wmain(int argc, wchar_t* argv[]) {
     ConfigureLogger();
-    LOG(INFO) << "Start";
     LOG_IF(argv[1] == NULL, FATAL) << "ProcessName is not specified";
     LOG_IF(argv[2] == NULL, FATAL) << "DllPath is not specified";
 
@@ -145,8 +144,6 @@ int wmain(int argc, wchar_t* argv[]) {
         MEM_RELEASE);
     CloseHandle(hThread);
     CloseHandle(hProcess);
-
-    LOG(INFO) << "End";
 
     return 0;
 }
