@@ -2,7 +2,7 @@
   File:      DllInjector32.exe
 
   Summary:   DllInjector is an application that searches for specified
-             process and injects specified DLL file.
+             process and injects specified Dll file.
 
 ===================================================================+*/
 
@@ -10,6 +10,7 @@
 #include <tlhelp32.h>
 #include <stdio.h>
 #include <easylogging++.h>>
+#include <filesystem>
 
 INITIALIZE_EASYLOGGINGPP
 el::Logger* defaultLogger = el::Loggers::getLogger("default");
@@ -20,7 +21,7 @@ void ConfigureLogger()
 {
     el::Configurations loggerConfigs;
     loggerConfigs.setToDefault();
-    loggerConfigs.setGlobally(el::ConfigurationType::Filename, "C:\\Users\\musli\\AppData\\Local\\Temp\\DLLInjector32.log");
+    loggerConfigs.setGlobally(el::ConfigurationType::Filename, "C:\\Users\\musli\\AppData\\Local\\Temp\\DllInjector32.log");
     el::Loggers::reconfigureAllLoggers(loggerConfigs);
 }
 
@@ -55,47 +56,48 @@ HANDLE GetProcessHandle(const wchar_t* szcProcessName) {
 }
 
 //  Writes string that contains hack .dll path to the process. Stores written memory
-//  address to `lpProcessSzcDLLPath` variable.
-LPVOID WriteHackDLLToProcess(HANDLE hProcess, const wchar_t* szcDLLPath) {
-    LPVOID lpProcessSzcDLLPath = VirtualAllocEx(
+//  address to `lpProcessSzcDllPath` variable.
+LPVOID WriteHackDllToProcess(HANDLE hProcess, const wchar_t* szcDllPath) {
+    LPVOID lpProcessSzcDllPath = VirtualAllocEx(
         hProcess,
         NULL,
-        (wcslen(szcDLLPath) + 1) * sizeof(wchar_t),
+        (wcslen(szcDllPath) + 1) * sizeof(wchar_t),
         MEM_COMMIT,
         PAGE_READWRITE );
-    if (lpProcessSzcDLLPath == NULL) {
-        LOG(FATAL) << "lpProcessSzcDLLPath is NULL (.dll file path is not written inside process memory).";
+    if (lpProcessSzcDllPath == NULL) {
+        LOG(FATAL) << "VirtualAllocEx() failed to get DMA address";
     }
     SIZE_T cbWritten = 0;
     WriteProcessMemory(
         hProcess,
-        lpProcessSzcDLLPath,
-        szcDLLPath,
-        (wcslen(szcDLLPath) + 1) * sizeof(wchar_t),
+        lpProcessSzcDllPath,
+        szcDllPath,
+        (wcslen(szcDllPath) + 1) * sizeof(wchar_t),
         &cbWritten);
+    LOG_IF(cbWritten == 0, FATAL) << ".dll file is not written inside process memory";
+    LOG(INFO) << "cbWritten: " << cbWritten;
 
-    return lpProcessSzcDLLPath;
+    return lpProcessSzcDllPath;
 }
 
 //  Creates remote thread in the process. This thread starts hack .dll.
-HANDLE CreateHackThread(HANDLE hProcess, LPVOID lpProcessSzcDLLPath) {
+HANDLE CreateHackThread(HANDLE hProcess, LPVOID lpProcessSzcDllPath) {
     HMODULE hKernel32base = GetModuleHandleA("kernel32.dll");
     if (hKernel32base == NULL) {
         LOG(FATAL) << "hKernel32base is NULL";
     }
     auto lpThreadStartAddress = (LPTHREAD_START_ROUTINE)GetProcAddress(hKernel32base, "LoadLibraryW");
+    LOG_IF(lpThreadStartAddress == NULL, FATAL) << "GetProcAddress() failed to find `LoadLibraryW()` address";
     DWORD wThreadId = 0;
     HANDLE hThread = CreateRemoteThread(
         hProcess,
         NULL,
         0,
         lpThreadStartAddress,
-        lpProcessSzcDLLPath,
+        lpProcessSzcDllPath,
         0,
         &wThreadId);
-    if (hThread == NULL) {
-        LOG(ERROR) << "hThread is NULL";
-    }
+    LOG_IF(hThread == NULL, FATAL) << "hThread is NULL";
     LOG(INFO) << "wThreadId: " << wThreadId;
 
     return hThread;
@@ -104,6 +106,7 @@ HANDLE CreateHackThread(HANDLE hProcess, LPVOID lpProcessSzcDLLPath) {
 //  Waits for the thread to finish
 void WaitThread(HANDLE hThread) {
     DWORD wThreadExitCode = 0;
+    LOG(INFO) << "Waiting for the library exit...";
     WaitForSingleObject(hThread, INFINITE);
     GetExitCodeThread(hThread, &wThreadExitCode);
     LOG(INFO) << "wThreadExitCode: " << wThreadExitCode;
@@ -112,35 +115,32 @@ void WaitThread(HANDLE hThread) {
 /*F+F+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   Function: wmain()
 
-  Args:     DLLInjector32.exe <ProcessName> <DLLPath>
+  Args:     DllInjector32.exe <ProcessName> <DllPath>
 -----------------------------------------------------------------F-F*/
 int wmain(int argc, wchar_t* argv[]) {
     ConfigureLogger();
     LOG(INFO) << "Start";
-
-    if (argv[1] == NULL) {
-        LOG(FATAL) << "ProcessName is not specified";
-    }
-    if (argv[2] == NULL) {
-        LOG(FATAL) << "DLLPath is not specified";
-    }
+    LOG_IF(argv[1] == NULL, FATAL) << "ProcessName is not specified";
+    LOG_IF(argv[2] == NULL, FATAL) << "DllPath is not specified";
 
     const wchar_t* szcProcessName = argv[1];
-    const wchar_t* szcDLLPath = argv[2];
+    const wchar_t* szcDllPath = argv[2];
+    LOG(INFO) << "<ProcessName>: " << szcProcessName;
+    LOG(INFO) << "<DllPath>: " << szcDllPath;
+    LOG_IF(std::filesystem::exists(szcDllPath) == false, FATAL) << "Specified <DllPath> is not exist.";
 
-    LOG(INFO) << "szcProcessName: " << szcProcessName;
-    LOG(INFO) << "szcDLLPath: " << szcDLLPath;
+    std::wstring szcDllAbsolutePath = std::filesystem::absolute(szcDllPath).wstring();
+    LOG(INFO) << "Absolute path: " << szcDllAbsolutePath;
 
     HANDLE hProcess = GetProcessHandle(szcProcessName);
-    LPVOID lpProcessSzcDLLPath = WriteHackDLLToProcess(hProcess, szcDLLPath);
-    HANDLE hThread = CreateHackThread(hProcess, lpProcessSzcDLLPath);
+    LPVOID lpProcessSzcDllPath = WriteHackDllToProcess(hProcess, szcDllAbsolutePath.c_str());
+    HANDLE hThread = CreateHackThread(hProcess, lpProcessSzcDllPath);
     LOG_IF(hThread, INFO) << "The library succesfully injected.";
-    LOG_IF(hThread, INFO) << "Waiting for the library exit...";
     WaitThread(hThread);
 
     VirtualFreeEx(
         hProcess,
-        lpProcessSzcDLLPath,
+        lpProcessSzcDllPath,
         0,
         MEM_RELEASE);
     CloseHandle(hThread);
