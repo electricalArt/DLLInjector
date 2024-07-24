@@ -1,7 +1,8 @@
 /*+===================================================================
-  File:      DLLInjector32.exe
+  File:      DllInjector32.exe
 
-  Summary:   DLLInjector is an application that searches for specified process and injects specified DLL file.
+  Summary:   DllInjector is an application that searches for specified
+             process and injects specified DLL file.
 
 ===================================================================+*/
 
@@ -48,6 +49,7 @@ HANDLE GetProcessHandle(const wchar_t* szcProcessName) {
     } while (Process32Next(hSnapshot, &processEntry));
 
     HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, true, wProcessId);
+    LOG_IF(hProcess == NULL, FATAL) << "Could not open specified process.";
 
     return hProcess;
 }
@@ -62,7 +64,7 @@ LPVOID WriteHackDLLToProcess(HANDLE hProcess, const wchar_t* szcDLLPath) {
         MEM_COMMIT,
         PAGE_READWRITE );
     if (lpProcessSzcDLLPath == NULL) {
-        defaultLogger->fatal("ERROR: lpProcessSzcDLLPath is NULL (.dll file path is not written inside process memory).");
+        LOG(FATAL) << "lpProcessSzcDLLPath is NULL (.dll file path is not written inside process memory).";
     }
     SIZE_T cbWritten = 0;
     WriteProcessMemory(
@@ -79,7 +81,7 @@ LPVOID WriteHackDLLToProcess(HANDLE hProcess, const wchar_t* szcDLLPath) {
 HANDLE CreateHackThread(HANDLE hProcess, LPVOID lpProcessSzcDLLPath) {
     HMODULE hKernel32base = GetModuleHandleA("kernel32.dll");
     if (hKernel32base == NULL) {
-        defaultLogger->fatal("hKernel32base is NULL");
+        LOG(FATAL) << "hKernel32base is NULL";
     }
     auto lpThreadStartAddress = (LPTHREAD_START_ROUTINE)GetProcAddress(hKernel32base, "LoadLibraryW");
     DWORD wThreadId = 0;
@@ -92,9 +94,9 @@ HANDLE CreateHackThread(HANDLE hProcess, LPVOID lpProcessSzcDLLPath) {
         0,
         &wThreadId);
     if (hThread == NULL) {
-        defaultLogger->error("ERROR: hThread is NULL");
+        LOG(ERROR) << "hThread is NULL";
     }
-    defaultLogger->info("wThreadId: %d\n", wThreadId);
+    LOG(INFO) << "wThreadId: " << wThreadId;
 
     return hThread;
 }
@@ -104,16 +106,11 @@ void WaitThread(HANDLE hThread) {
     DWORD wThreadExitCode = 0;
     WaitForSingleObject(hThread, INFINITE);
     GetExitCodeThread(hThread, &wThreadExitCode);
-    defaultLogger->info("wThreadExitCode: %d\n", wThreadExitCode);
-    if (wThreadExitCode == 0) {
-        defaultLogger->error("THREAD ERROR: %d\n", GetLastError());
-    }
+    LOG(INFO) << "wThreadExitCode: " << wThreadExitCode;
 }
 
 /*F+F+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   Function: wmain()
-
-  Summary:  Injects provided library to provided process.
 
   Args:     DLLInjector32.exe <ProcessName> <DLLPath>
 -----------------------------------------------------------------F-F*/
@@ -122,10 +119,10 @@ int wmain(int argc, wchar_t* argv[]) {
     LOG(INFO) << "Start";
 
     if (argv[1] == NULL) {
-        LOG(FATAL) << "ERROR: ProcessName is not specified";
+        LOG(FATAL) << "ProcessName is not specified";
     }
     if (argv[2] == NULL) {
-        LOG(FATAL) << "ERROR: DLLPath is not specified";
+        LOG(FATAL) << "DLLPath is not specified";
     }
 
     const wchar_t* szcProcessName = argv[1];
@@ -137,6 +134,8 @@ int wmain(int argc, wchar_t* argv[]) {
     HANDLE hProcess = GetProcessHandle(szcProcessName);
     LPVOID lpProcessSzcDLLPath = WriteHackDLLToProcess(hProcess, szcDLLPath);
     HANDLE hThread = CreateHackThread(hProcess, lpProcessSzcDLLPath);
+    LOG_IF(hThread, INFO) << "The library succesfully injected.";
+    LOG_IF(hThread, INFO) << "Waiting for the library exit...";
     WaitThread(hThread);
 
     VirtualFreeEx(
