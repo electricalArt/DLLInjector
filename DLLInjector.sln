@@ -4,10 +4,16 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 17.10.35027.167
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{89DAA5B0-846C-49D5-99B7-70C72CECCE52}"
+	ProjectSection(SolutionItems) = preProject
+		README.md = README.md
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DummyLibraryDll", "DummyLibraryDll\DummyLibraryDll.vcxproj", "{7CFC2FA1-2EFF-41D5-8CA0-8F4F64793E95}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DllInjector", "DllInjector\DllInjector.vcxproj", "{D87B1BA6-1AFB-490F-B530-C5D4A99DC039}"
+	ProjectSection(ProjectDependencies) = postProject
+		{7CFC2FA1-2EFF-41D5-8CA0-8F4F64793E95} = {7CFC2FA1-2EFF-41D5-8CA0-8F4F64793E95}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
