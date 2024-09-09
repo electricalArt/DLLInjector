@@ -14,24 +14,16 @@
 
 INITIALIZE_EASYLOGGINGPP
 
-constexpr size_t PROCESS_NAME_LENGTH_MAX = 500;
-
+//  Configures default logger to output logs to stdout and to log file.
 void ConfigureLogger()
 {
     el::Configurations loggerConfigs;
     loggerConfigs.setToDefault();
-    loggerConfigs.setGlobally(el::ConfigurationType::Filename, "C:\\Users\\musli\\AppData\\Local\\Temp\\DllInjector.log");
+    loggerConfigs.setGlobally(
+        el::ConfigurationType::Filename,
+        std::filesystem::temp_directory_path().string() + "\\DllInjector.log");
     el::Loggers::reconfigureAllLoggers(loggerConfigs);
-    LOG(INFO) << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>";
 }
-
-/*
-void ExitError(const char* szcMsg) {
-    puts(szcMsg);
-    getchar();
-    exit(1);
-}
-*/
 
 //  Finds the process. Returns found process handle.
 HANDLE GetProcessHandle(const wchar_t* szcProcessName) {
@@ -115,7 +107,7 @@ void WaitThread(HANDLE hThread) {
 /*F+F+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   Function: wmain()
 
-  Args:     DllInjector32.exe <ProcessName> <DllPath>
+  Args:     DllInjector.exe <ProcessName> <DllPath>
 -----------------------------------------------------------------F-F*/
 int wmain(int argc, wchar_t* argv[]) {
     ConfigureLogger();
@@ -133,17 +125,22 @@ int wmain(int argc, wchar_t* argv[]) {
 
     HANDLE hProcess = GetProcessHandle(szcProcessName);
     LPVOID lpProcessSzcDllPath = WriteHackDllToProcess(hProcess, szcDllAbsolutePath.c_str());
+    // WriteHackDllToProcess() allocates memory withing the process
+
     HANDLE hThread = CreateHackThread(hProcess, lpProcessSzcDllPath);
     LOG_IF(hThread, INFO) << "The library succesfully injected.";
     WaitThread(hThread);
 
+    // Free allocated memory within the process
     VirtualFreeEx(
         hProcess,
         lpProcessSzcDllPath,
         0,
         MEM_RELEASE);
-    CloseHandle(hThread);
-    CloseHandle(hProcess);
+    if (hThread)
+        CloseHandle(hThread);
+    if (hProcess)
+        CloseHandle(hProcess);
 
     return 0;
 }

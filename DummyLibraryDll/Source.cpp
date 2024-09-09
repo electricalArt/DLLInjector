@@ -7,6 +7,6 @@ BOOL WINAPI DllMain(
 {
 	if (fdwReason == DLL_PROCESS_ATTACH)
 	{
-		MessageBox(0, L"Luck!", 0, 0);
+		MessageBox(0, L"The library is successfuly injected", 0, 0);
 	}
 }
